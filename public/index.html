@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTV Stream+ | Modern Streaming Platform</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.6.0/shaka-player.compiled.min.js"></script>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="animated-bg">
+        <div class="wave wave1"></div>
+        <div class="wave wave2"></div>
+        <div class="wave wave3"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="glass-header">
+        <div class="container">
+            <div class="logo">
+                <h1>📺 Apex Stream+</h1>
+                <span class="tagline">Modern Streaming Experience</span>
+            </div>
+            <div class="header-controls">
+                <select id="playerSelect" class="glass-select">
+                    <option value="shaka">Shaka Player</option>
+                    <option value="native">MediaX Player</option>
+                </select>
+                <select id="audioSelect" class="glass-select" style="display: none;">
+                    <option value="">Default Audio</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Video Player Section -->
+        <section class="player-section glass-panel">
+            <div class="video-container">
+                <video id="video" controls autoplay muted></video>
+                <div class="player-overlay">
+                    <div class="current-channel">
+                        <span id="currentChannelName">Select a channel to start streaming</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Controls Section -->
+        <section class="controls-section glass-panel">
+            <div class="search-container">
+                <input id="searchInput" type="text" placeholder="🔍 Search channels..." class="glass-input">
+            </div>
+            <div class="filter-container">
+                <select id="groupSelect" class="glass-select">
+                    <option value="all">All Categories</option>
+                </select>
+                <button id="refreshBtn" class="glass-btn primary">🔄 Refresh</button>
+            </div>
+        </section>
+
+        <!-- Status -->
+        <div id="status" class="status-message"></div>
+
+        <!-- Channels Grid -->
+        <section class="channels-section">
+            <div id="channelList" class="channels-grid"></div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-footer">
+        <div class="container">
+            <p>Developer: <strong>@ifeelram</strong> | Community: <strong>@BillaSpace</strong></p>
+            <p>Modern IPTV Streaming Platform &copy; 2025</p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading channels...</p>
+    </div>
+
+    <script src="js/utils.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
