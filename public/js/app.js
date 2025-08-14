@@ -1,38 +1,89 @@
 class IPTVPlayer {
     constructor() {
         this.allChannels = [];
+        this.filteredChannels = [];
         this.player = null;
         this.currentChannel = null;
         this.playerType = 'shaka';
         this.playlistUrl = '';
+        this.currentView = 'grid';
         
         this.initializeElements();
         this.bindEvents();
         this.recordVisit();
         this.loadPlaylist();
+        this.initializeFeatures();
     }
 
     initializeElements() {
         this.elements = {
             video: document.getElementById('video'),
             searchInput: document.getElementById('searchInput'),
+            clearSearch: document.getElementById('clearSearch'),
             groupSelect: document.getElementById('groupSelect'),
+            sortSelect: document.getElementById('sortSelect'),
             playerSelect: document.getElementById('playerSelect'),
             audioSelect: document.getElementById('audioSelect'),
+            audioGroup: document.getElementById('audioGroup'),
             refreshBtn: document.getElementById('refreshBtn'),
+            gridToggle: document.getElementById('gridToggle'),
+            fullscreenBtn: document.getElementById('fullscreenBtn'),
+            pipBtn: document.getElementById('pipBtn'),
             channelList: document.getElementById('channelList'),
             status: document.getElementById('status'),
             currentChannelName: document.getElementById('currentChannelName'),
-            loadingOverlay: document.getElementById('loadingOverlay')
+            currentChannelGroup: document.getElementById('currentChannelGroup'),
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            loadingStatus: document.getElementById('loadingStatus'),
+            loadingProgress: document.getElementById('loadingProgress'),
+            playerLoading: document.getElementById('playerLoading'),
+            onlineStatus: document.getElementById('onlineStatus'),
+            channelCount: document.getElementById('channelCount'),
+            categoryCount: document.getElementById('categoryCount'),
+            liveCount: document.getElementById('liveCount'),
+            qualityIndicator: document.getElementById('qualityIndicator'),
+            toastContainer: document.getElementById('toastContainer')
         };
     }
 
     bindEvents() {
-        this.elements.searchInput.addEventListener('input', debounce(() => this.filterChannels(), 300));
+        // Search functionality
+        this.elements.searchInput.addEventListener('input', debounce(() => {
+            this.filterChannels();
+            this.toggleClearButton();
+        }, 300));
+
+        this.elements.clearSearch.addEventListener('click', () => {
+            this.elements.searchInput.value = '';
+            this.filterChannels();
+            this.toggleClearButton();
+        });
+
+        // Filter and sort
         this.elements.groupSelect.addEventListener('change', () => this.filterChannels());
+        this.elements.sortSelect.addEventListener('change', () => this.filterChannels());
+
+        // Player controls
         this.elements.playerSelect.addEventListener('change', (e) => this.switchPlayer(e.target.value));
         this.elements.audioSelect.addEventListener('change', (e) => this.switchAudio(e.target.value));
+
+        // Action buttons
         this.elements.refreshBtn.addEventListener('click', () => this.loadPlaylist());
+        this.elements.gridToggle.addEventListener('click', () => this.toggleView());
+
+        // Player controls
+        this.elements.fullscreenBtn?.addEventListener('click', () => this.toggleFullscreen());
+        this.elements.pipBtn?.addEventListener('click', () => this.togglePiP());
+
+        // View toggle buttons
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                this.currentView = e.target.dataset.view;
+                this.renderChannels(this.filteredChannels);
+            });
+        });
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -48,7 +99,28 @@ class IPTVPlayer {
                         break;
                 }
             }
+            
+            if (e.key === 'Escape' && document.fullscreenElement) {
+                document.exitFullscreen();
+            }
         });
+
+        // Network status monitoring
+        window.addEventListener('online', () => this.updateNetworkStatus(true));
+        window.addEventListener('offline', () => this.updateNetworkStatus(false));
+    }
+
+    initializeFeatures() {
+        // Check for Picture-in-Picture support
+        if (document.pictureInPictureEnabled && this.elements.pipBtn) {
+            this.elements.pipBtn.style.display = 'block';
+        }
+
+        // Update network status
+        this.updateNetworkStatus(navigator.onLine);
+
+        // Auto-update stats periodically
+        setInterval(() => this.updateStats(), 30000);
     }
 
     async recordVisit() {
@@ -69,26 +141,40 @@ class IPTVPlayer {
 
     async loadPlaylist() {
         this.showLoading(true);
-        this.updateStatus('Loading channels...', 'info');
+        this.updateLoadingStatus('Connecting to streaming service...', 10);
 
         try {
             // Get playlist URL from backend (hidden from frontend)
+            this.updateLoadingStatus('Fetching playlist...', 30);
             const response = await fetch('/api/playlist');
             const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to get playlist URL');
+            }
+            
             this.playlistUrl = data.playlistUrl;
 
+            this.updateLoadingStatus('Loading channels...', 50);
             const playlistResponse = await fetch(this.playlistUrl);
             if (!playlistResponse.ok) throw new Error('Failed to fetch playlist');
             
             const playlistText = await playlistResponse.text();
+            this.updateLoadingStatus('Parsing channels...', 70);
+            
             this.allChannels = this.parseM3U(playlistText);
 
             // Add hardcoded premium channels
-            this.addHardcodedChannels();
+            this.updateLoadingStatus('Adding premium channels...', 80);
+            await this.addHardcodedChannels();
 
+            this.updateLoadingStatus('Finalizing...', 90);
             this.updateGroupOptions();
             this.filterChannels();
-            this.updateStatus(`Loaded ${this.allChannels.length} channels successfully`, 'success');
+            this.updateStats();
+            
+            this.updateLoadingStatus('Complete!', 100);
+            this.showToast(`Successfully loaded ${this.allChannels.length} channels`, 'success');
             
             setTimeout(() => {
                 this.updateStatus('', '');
@@ -96,8 +182,11 @@ class IPTVPlayer {
         } catch (error) {
             console.error('Failed to load playlist:', error);
             this.updateStatus(`Failed to load channels: ${error.message}`, 'error');
+            this.showToast('Failed to load channels', 'error');
         } finally {
-            this.showLoading(false);
+            setTimeout(() => {
+                this.showLoading(false);
+            }, 500);
         }
     }
 
@@ -171,7 +260,7 @@ class IPTVPlayer {
         };
     }
 
-    addHardcodedChannels() {
+    async addHardcodedChannels() {
         // Get token from existing channels if available
         const tokenChannel = this.allChannels.find(c => c.cookie?.cookie);
         const token = tokenChannel?.cookie?.cookie || '';
@@ -181,7 +270,7 @@ class IPTVPlayer {
                 name: 'Jalsha Movies HD',
                 logo: 'https://img.media.jio.com/tvpimages/92/42/302096_1749652323250_l_medium.jpg',
                 manifestUri: `https://jiotvmblive.cdn.jio.com/bpk-tv/Jalsa_Movies_HD_BTS/output/index.mpd${token ? '?' + token : ''}`,
-                group: 'Premium Movies',
+                group: '🎬 Premium Movies',
                 clearKeyId: '336cae9ff0c957cfabc598f4faf7e701',
                 clearKeyKey: '24b00e0fec8785b474f544560dfec897',
                 userAgent: 'plaYtv/7.1.3 (Linux;Android 13) ygx/69.1 ExoPlayerLib/2.11.6',
@@ -191,7 +280,7 @@ class IPTVPlayer {
                 name: 'Star Jalsha',
                 logo: 'https://img.media.jio.com/tvpimages/13/28/301972_1749651663207_l_medium.jpg',
                 manifestUri: `https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Jalsha_BTS/output/index.mpd${token ? '?' + token : ''}`,
-                group: 'Premium Entertainment',
+                group: '⭐ Premium Entertainment',
                 clearKeyId: '9d4fac613fa6505c8f4c34269bad472a',
                 clearKeyKey: '4eb0380c9f3d517db1eeaa768a3e23ac',
                 userAgent: 'plaYtv/7.1.3 (Linux;Android 13) ygx/69.1 ExoPlayerLib/2.11.6',
@@ -201,7 +290,7 @@ class IPTVPlayer {
                 name: 'Star Jalsha HD',
                 logo: 'https://img.media.jio.com/tvpimages/13/28/301972_1749651663207_l_medium.jpg',
                 manifestUri: `https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Jalsha_HD_BTS/output/index.mpd${token ? '?' + token : ''}`,
-                group: 'Premium Entertainment',
+                group: '⭐ Premium Entertainment',
                 clearKeyId: '7810c0264da15a62b200a3254d041aed',
                 clearKeyKey: 'cb1e3bcfcdb1281b85625b12dae6de43',
                 userAgent: 'plaYtv/7.1.3 (Linux;Android 13) ygx/69.1 ExoPlayerLib/2.11.6',
@@ -224,7 +313,7 @@ class IPTVPlayer {
         groups.forEach(group => {
             const option = document.createElement('option');
             option.value = group === 'all' ? 'all' : group;
-            option.textContent = group === 'all' ? 'All Categories' : group;
+            option.textContent = group === 'all' ? '🌐 All Categories' : group;
             this.elements.groupSelect.appendChild(option);
         });
     }
@@ -232,8 +321,9 @@ class IPTVPlayer {
     filterChannels() {
         const searchTerm = this.elements.searchInput.value.toLowerCase().trim();
         const selectedGroup = this.elements.groupSelect.value;
+        const sortType = this.elements.sortSelect.value;
 
-        const filtered = this.allChannels.filter(channel => {
+        let filtered = this.allChannels.filter(channel => {
             const matchesSearch = !searchTerm || 
                 channel.name.toLowerCase().includes(searchTerm) ||
                 (channel.group && channel.group.toLowerCase().includes(searchTerm));
@@ -244,6 +334,24 @@ class IPTVPlayer {
             return matchesSearch && matchesGroup;
         });
 
+        // Sort channels
+        switch (sortType) {
+            case 'name':
+                filtered.sort((a, b) => a.name.localeCompare(b.name));
+                break;
+            case 'name-desc':
+                filtered.sort((a, b) => b.name.localeCompare(a.name));
+                break;
+            case 'group':
+                filtered.sort((a, b) => {
+                    const groupA = a.group || 'zzz';
+                    const groupB = b.group || 'zzz';
+                    return groupA.localeCompare(groupB) || a.name.localeCompare(b.name);
+                });
+                break;
+        }
+
+        this.filteredChannels = filtered;
         this.renderChannels(filtered);
     }
 
@@ -251,34 +359,59 @@ class IPTVPlayer {
         if (!channels.length) {
             this.elements.channelList.innerHTML = `
                 <div class="no-channels">
-                    <p>No channels found matching your criteria.</p>
+                    <div class="no-channels-icon">📺</div>
+                    <h3>No channels found</h3>
+                    <p>Try adjusting your search or filter criteria</p>
                 </div>
             `;
+            this.elements.channelList.className = 'channels-grid empty';
             return;
         }
 
-        const channelsHTML = channels.map(channel => `
-            <div class="channel-card" tabindex="0" data-channel='${JSON.stringify(channel)}'>
-                ${channel.logo ? `<img class="channel-logo" src="${channel.logo}" alt="${channel.name}" loading="lazy">` : '📺'}
-                <div class="channel-name">${escapeHtml(channel.name)}</div>
-                <div class="channel-group">${escapeHtml(channel.group || 'General')}</div>
-            </div>
-        `).join('');
+        const isListView = this.currentView === 'list';
+        this.elements.channelList.className = `channels-${this.currentView}`;
+
+        const channelsHTML = channels.map(channel => {
+            const logoHtml = channel.logo 
+                ? `<img class="channel-logo" src="${channel.logo}" alt="${escapeHtml(channel.name)}" loading="lazy" onerror="this.style.display='none'">` 
+                : '<div class="channel-logo-placeholder">📺</div>';
+
+            return `
+                <div class="channel-card ${isListView ? 'list-item' : ''}" 
+                     tabindex="0" 
+                     data-channel='${JSON.stringify(channel).replace(/'/g, '&apos;')}'>
+                    ${logoHtml}
+                    <div class="channel-info">
+                        <div class="channel-name">${escapeHtml(channel.name)}</div>
+                        <div class="channel-group">${escapeHtml(channel.group || 'General')}</div>
+                        ${channel.clearKeyId ? '<div class="channel-quality">🔒 DRM Protected</div>' : '<div class="channel-quality">📺 Standard</div>'}
+                    </div>
+                    <div class="channel-actions">
+                        <button class="play-btn">▶ Play</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
 
         this.elements.channelList.innerHTML = channelsHTML;
 
-        // Add click/keyboard event listeners
+        // Add event listeners
         this.elements.channelList.querySelectorAll('.channel-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const channelData = JSON.parse(card.dataset.channel);
-                this.playChannel(channelData);
+            const playBtn = card.querySelector('.play-btn');
+            const channelData = JSON.parse(card.dataset.channel.replace(/&apos;/g, "'"));
+
+            const playChannel = () => this.playChannel(channelData);
+
+            card.addEventListener('click', playChannel);
+            playBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                playChannel();
             });
 
             card.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    const channelData = JSON.parse(card.dataset.channel);
-                    this.playChannel(channelData);
+                    playChannel();
                 }
             });
         });
@@ -286,8 +419,8 @@ class IPTVPlayer {
 
     async playChannel(channel) {
         this.currentChannel = channel;
-        this.updateStatus(`Loading ${channel.name}...`, 'info');
-        this.elements.currentChannelName.textContent = channel.name;
+        this.updateCurrentChannelDisplay(channel);
+        this.showPlayerLoading(true);
 
         // Smooth scroll to video
         this.elements.video.scrollIntoView({ 
@@ -331,9 +464,9 @@ class IPTVPlayer {
                 this.player.addEventListener('error', (event) => {
                     console.error('Shaka Player error:', event.detail);
                     this.updateStatus(`Playback error: ${event.detail.message}`, 'error');
+                    this.showPlayerLoading(false);
                 });
 
-                // Update audio tracks when available
                 this.player.addEventListener('trackschanged', () => {
                     this.updateAudioTracks();
                 });
@@ -373,6 +506,8 @@ class IPTVPlayer {
 
             await this.player.load(channel.manifestUri);
             this.updateStatus(`Now playing: ${channel.name}`, 'success');
+            this.showToast(`Playing ${channel.name}`, 'success');
+            this.showPlayerLoading(false);
 
             setTimeout(() => {
                 this.updateStatus('', '');
@@ -381,6 +516,8 @@ class IPTVPlayer {
         } catch (error) {
             console.error('Shaka Player error:', error);
             this.updateStatus(`Failed to play channel: ${error.message}`, 'error');
+            this.showToast('Playback failed', 'error');
+            this.showPlayerLoading(false);
         }
     }
 
@@ -389,6 +526,8 @@ class IPTVPlayer {
             // For native player, we can only play direct URLs without DRM
             if (channel.clearKeyId || channel.clearKeyKey) {
                 this.updateStatus('This channel requires DRM support. Please switch to Shaka Player.', 'error');
+                this.showToast('DRM support required - Switch to Shaka Player', 'error');
+                this.showPlayerLoading(false);
                 return;
             }
 
@@ -402,6 +541,8 @@ class IPTVPlayer {
             await this.elements.video.play();
             
             this.updateStatus(`Now playing: ${channel.name}`, 'success');
+            this.showToast(`Playing ${channel.name}`, 'success');
+            this.showPlayerLoading(false);
             
             setTimeout(() => {
                 this.updateStatus('', '');
@@ -410,6 +551,8 @@ class IPTVPlayer {
         } catch (error) {
             console.error('Native player error:', error);
             this.updateStatus(`Failed to play channel: ${error.message}`, 'error');
+            this.showToast('Playback failed', 'error');
+            this.showPlayerLoading(false);
         }
     }
 
@@ -421,17 +564,13 @@ class IPTVPlayer {
             this.player = null;
         }
 
-        this.elements.audioSelect.style.display = playerType === 'shaka' ? 'block' : 'none';
+        this.elements.audioGroup.style.display = playerType === 'shaka' ? 'block' : 'none';
 
         if (this.currentChannel) {
             this.playChannel(this.currentChannel);
         }
 
-        this.updateStatus(`Switched to ${playerType === 'shaka' ? 'Shaka' : 'Native'} Player`, 'info');
-        
-        setTimeout(() => {
-            this.updateStatus('', '');
-        }, 2000);
+        this.showToast(`Switched to ${playerType === 'shaka' ? 'Shaka' : 'MediaX'} Player`, 'info');
     }
 
     updateAudioTracks() {
@@ -455,7 +594,7 @@ class IPTVPlayer {
             this.elements.audioSelect.appendChild(option);
         });
 
-        this.elements.audioSelect.style.display = audioTracks.length > 1 ? 'block' : 'none';
+        this.elements.audioGroup.style.display = audioTracks.length > 1 ? 'block' : 'none';
     }
 
     switchAudio(trackId) {
@@ -463,16 +602,16 @@ class IPTVPlayer {
 
         if (trackId) {
             this.player.selectAudioLanguage(trackId);
-            this.updateStatus('Audio track changed', 'info');
+            this.showToast('Audio track changed', 'info');
         } else {
-            // Reset to default
             this.player.selectAudioLanguage('');
-            this.updateStatus('Reset to default audio', 'info');
+            this.showToast('Reset to default audio', 'info');
         }
+    }
 
-        setTimeout(() => {
-            this.updateStatus('', '');
-        }, 2000);
+    updateCurrentChannelDisplay(channel) {
+        this.elements.currentChannelName.textContent = channel.name;
+        this.elements.currentChannelGroup.textContent = channel.group || 'General';
     }
 
     updateStatus(message, type = '') {
@@ -484,12 +623,106 @@ class IPTVPlayer {
         }
     }
 
+    updateLoadingStatus(message, progress) {
+        this.elements.loadingStatus.textContent = message;
+        this.elements.loadingProgress.style.width = `${progress}%`;
+    }
+
     showLoading(show) {
         if (show) {
             this.elements.loadingOverlay.classList.remove('hidden');
         } else {
             this.elements.loadingOverlay.classList.add('hidden');
+            this.elements.loadingProgress.style.width = '0%';
         }
+    }
+
+    showPlayerLoading(show) {
+        if (this.elements.playerLoading) {
+            this.elements.playerLoading.style.display = show ? 'flex' : 'none';
+        }
+    }
+
+    toggleClearButton() {
+        const hasValue = this.elements.searchInput.value.length > 0;
+        this.elements.clearSearch.style.display = hasValue ? 'block' : 'none';
+    }
+
+    toggleView() {
+        this.currentView = this.currentView === 'grid' ? 'list' : 'grid';
+        this.elements.gridToggle.querySelector('.btn-text').textContent = 
+            this.currentView === 'grid' ? 'List' : 'Grid';
+        this.elements.gridToggle.querySelector('.btn-icon').textContent = 
+            this.currentView === 'grid' ? '☰' : '⊞';
+        
+        this.renderChannels(this.filteredChannels);
+    }
+
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            this.elements.video.requestFullscreen?.() || 
+            this.elements.video.webkitRequestFullscreen?.() || 
+            this.elements.video.mozRequestFullScreen?.();
+        } else {
+            document.exitFullscreen?.() || 
+            document.webkitExitFullscreen?.() || 
+            document.mozCancelFullScreen?.();
+        }
+    }
+
+    togglePiP() {
+        if (!document.pictureInPictureElement) {
+            this.elements.video.requestPictureInPicture?.();
+        } else {
+            document.exitPictureInPicture?.();
+        }
+    }
+
+    updateNetworkStatus(isOnline) {
+        const statusDot = this.elements.onlineStatus;
+        const statusText = statusDot.parentElement.querySelector('.status-text');
+        
+        if (isOnline) {
+            statusDot.className = 'status-dot online';
+            statusText.textContent = 'Online';
+        } else {
+            statusDot.className = 'status-dot offline';
+            statusText.textContent = 'Offline';
+        }
+    }
+
+    updateStats() {
+        const totalChannels = this.allChannels.length;
+        const categories = new Set(this.allChannels.map(c => c.group)).size;
+        const liveStreams = this.allChannels.filter(c => c.manifestUri).length;
+        
+        this.elements.channelCount.textContent = totalChannels;
+        this.elements.categoryCount.textContent = categories;
+        this.elements.liveCount.textContent = liveStreams;
+        
+        // Update quality indicator based on current channel
+        if (this.currentChannel?.clearKeyId) {
+            this.elements.qualityIndicator.textContent = 'DRM';
+        } else {
+            this.elements.qualityIndicator.textContent = 'HD';
+        }
+    }
+
+    showToast(message, type = 'info', duration = 3000) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        
+        this.elements.toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.parentElement.removeChild(toast);
+                }
+            }, 300);
+        }, duration);
     }
 }
 
@@ -502,5 +735,12 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('beforeunload', () => {
     if (window.iptvPlayer?.player) {
         window.iptvPlayer.player.destroy();
+    }
+});
+
+// Handle visibility change
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && window.iptvPlayer?.elements.video) {
+        window.iptvPlayer.elements.video.pause();
     }
 });
