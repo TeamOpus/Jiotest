@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Apex IPTV Stream+</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="assets/icons/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="animated-bg">
+        <div class="wave wave1"></div>
+        <div class="wave wave2"></div>
+        <div class="wave wave3"></div>
+    </div>
+
+    <div class="admin-container">
+        <!-- Login Section -->
+        <div id="loginSection" class="login-section glass-panel">
+            <div class="logo-section">
+                <h2>🔐 Admin Access</h2>
+                <p class="login-subtitle">IPTV Stream+ Dashboard</p>
+            </div>
+            <form id="loginForm">
+                <input 
+                    type="password" 
+                    id="adminPassword" 
+                    placeholder="Enter admin password" 
+                    class="glass-input" 
+                    required 
+                    autocomplete="current-password"
+                >
+                <button type="submit" class="glass-btn primary">
+                    <span>🚀 Access Dashboard</span>
+                </button>
+            </form>
+            <div class="login-footer">
+                <p>Developer: <strong>@ifeelram</strong> | Brought To You By: <strong>@BillaSpace</strong></p>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboardSection" class="dashboard-section" style="display: none;">
+            <header class="admin-header glass-panel">
+                <div class="header-left">
+                    <h1>📊 Admin Dashboard</h1>
+                    <span class="last-updated">Last updated: <span id="lastUpdated">Never</span></span>
+                </div>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="glass-btn">🔄 Refresh</button>
+                    <button id="logoutBtn" class="glass-btn">🚪 Logout</button>
+                </div>
+            </header>
+
+            <main class="admin-main">
+                <!-- Statistics Grid -->
+                <section class="stats-section">
+                    <div class="stats-grid">
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon">📈</div>
+                            <h3>Today's Visits</h3>
+                            <div id="todayVisits" class="stat-number">0</div>
+                            <div class="stat-change">+0% from yesterday</div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon">👥</div>
+                            <h3>Unique Visitors</h3>
+                            <div id="uniqueVisitors" class="stat-number">0</div>
+                            <div class="stat-change">Tracking active</div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon">📺</div>
+                            <h3>Channels Played</h3>
+                            <div id="channelsPlayed" class="stat-number">0</div>
+                            <div class="stat-change">Content engagement</div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon">⏱️</div>
+                            <h3>Server Status</h3>
+                            <div id="serverStatus" class="stat-number">🟢</div>
+                            <div class="stat-change">Online & Healthy</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Charts Section -->
+                <section class="charts-section">
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header">
+                            <h3>🏆 Popular Channels</h3>
+                            <span class="chart-subtitle">Most watched today</span>
+                        </div>
+                        <div id="popularChannels" class="chart-content"></div>
+                    </div>
+
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header">
+                            <h3>📊 Quick Stats</h3>
+                            <span class="chart-subtitle">Platform overview</span>
+                        </div>
+                        <div class="quick-stats">
+                            <div class="quick-stat-item">
+                                <span class="quick-stat-label">Platform Uptime</span>
+                                <span class="quick-stat-value" id="uptime">99.9%</span>
+                            </div>
+                            <div class="quick-stat-item">
+                                <span class="quick-stat-label">Total Channels</span>
+                                <span class="quick-stat-value" id="totalChannels">Loading...</span>
+                            </div>
+                            <div class="quick-stat-item">
+                                <span class="quick-stat-label">Response Time</span>
+                                <span class="quick-stat-value" id="responseTime">< 200ms</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent Activity -->
+                <section class="activity-section">
+                    <div class="activity-container glass-panel">
+                        <div class="chart-header">
+                            <h3>🕒 Recent Activity</h3>
+                            <span class="chart-subtitle">Live activity feed</span>
+                        </div>
+                        <div id="recentActivity" class="activity-feed">
+                            <div class="activity-item">
+                                <span class="activity-time">Now</span>
+                                <span class="activity-desc">Dashboard loaded successfully</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Footer -->
+            <footer class="admin-footer">
+                <div class="footer-content">
+                    <p>Apex Stream+ Admin Panel &copy; 2025</p>
+                    <p>Developer: <strong>@ifeelram</strong> | Powered By: <strong>@BillaSpace</strong></p>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="js/utils.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+  </html>
+                                  
